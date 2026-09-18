@@ -1,0 +1,7 @@
+parameters:
+    level: 10
+    paths:
+        - src/
+        - tests/
+        - .php-cs-fixer.dist.php
+        - rector.php
