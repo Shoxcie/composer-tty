@@ -47,11 +47,11 @@ The repo uses its own callback: `rector:check` and `rector:fix` go through `@tty
 
 ## Upstream bugs worked around
 
-Recheck these whenever `composer update` brings a newer version of the package (`composer show <package>` prints the installed one). As an agent, set `PAO_DISABLE=1` so the output isn't condensed.
+Recheck these whenever `composer update` brings a newer version of the package (`composer show <package>` prints the installed one). Each bug links its upstream issue, and `gh issue view <url> --json state,closedAt` is the quickest first check. A closed issue still needs the check below, since the fix has to be in a release. As an agent, set `PAO_DISABLE=1` so the output isn't condensed.
 
 ### phpunit/php-code-coverage 14.3.3: `test:coverage` always reports 100%
 
-`ProcessedCodeCoverageData::renameFile()` deletes a file's data when the old and new names are equal, which happens when `src/` holds a single file. The report then has 0 of 0 lines, which is shown as 100%. It happens on every OS. Until it's fixed, see real line coverage with `vendor/bin/pest --coverage-clover=<file>` and look for `count="0"` lines.
+`ProcessedCodeCoverageData::renameFile()` deletes a file's data when the old and new names are equal, which happens when `src/` holds a single file. The report then has 0 of 0 lines, which is shown as 100%. It happens on every OS. Reported as [sebastianbergmann/php-code-coverage#1331](https://github.com/sebastianbergmann/php-code-coverage/issues/1331). Until it's fixed, see real line coverage with `vendor/bin/pest --coverage-clover=<file>` and look for `count="0"` lines.
 
 - **Check:** run `vendor/bin/pest --coverage`. While the bug is there, only `Total: 100.0 %` is printed. Once it's fixed, a row for `Tty` appears above the total.
 - **Clean up:** delete this entry and the "currently meaningless" remark on `test:coverage` under Commands. Nothing in the code depends on it.
@@ -60,11 +60,13 @@ Recheck these whenever `composer update` brings a newer version of the package (
 
 These bugs make `composer test:mutate` meaningless on Windows. CI still runs it there, where it passes no matter what, and the Ubuntu job gives the real score. It's kept out of `quality` so local runs don't show that fake result:
 
-1. It wraps `--filter` in literal quotes, so cmd treats the `|` in it as a pipe. Every mutation run fails, and every mutant counts as killed, so the score is always 100%.
-2. It splits the source on `PHP_EOL`, which is `\r\n` on Windows, so with LF files every `@pest-mutate-ignore` comment lands on line 1.
-3. It treats `C:\…` paths as relative, so without `--path` it finds no files. The `--path=src` in `test:mutate` works around this.
+1. It wraps `--filter` in literal quotes, so cmd treats the `|` in it as a pipe. Every mutation run fails, and every mutant counts as killed, so the score is always 100%. Reported as [pestphp/pest#1927](https://github.com/pestphp/pest/issues/1927).
+2. It splits the source on `PHP_EOL`, which is `\r\n` on Windows, so with LF files every `@pest-mutate-ignore` comment lands on line 1. Reported as [pestphp/pest#1928](https://github.com/pestphp/pest/issues/1928).
+3. It treats `C:\…` paths as relative, so without `--path` it finds no files. The `--path=src` in `test:mutate` works around this. Diagnosed in [pestphp/pest#1313](https://github.com/pestphp/pest/issues/1313), which links an open fix PR.
 
-A fourth bug makes the child command fail the same way as bug 1 when Pest is started as `vendor/bin/pest --mutate`, so run these checks through Composer.
+A fourth bug makes the child command fail the same way as bug 1 when Pest is started as `vendor/bin/pest --mutate`, so run these checks through Composer. That one is [pestphp/pest#1916](https://github.com/pestphp/pest/issues/1916).
+
+Issues are disabled on `pestphp/pest-plugin-mutate`, so all of these live in `pestphp/pest`.
 
 If only bug 1 gets fixed, the Windows CI job starts failing at about 94.9%, while Ubuntu stays at 100%. Mutation testing then works, but bug 2 keeps the two ignore comments from applying. That's the signal to run the checks below.
 
@@ -79,7 +81,7 @@ If only bug 1 gets fixed, the Windows CI job starts failing at about 94.9%, whil
 
 ### rector/rector 2.6.7: named arguments for `@no-named-arguments` APIs
 
-`AddNameToBooleanArgumentRector` names arguments even when the callee is marked `@no-named-arguments`, like PHP CS Fixer's `Config::setRiskyAllowed()`. PHPStan rejects that (`argument.named`), so the two tools loop, and that's why the rule is skipped in `rector.php`. If PHPStan reports `argument.named`, drop the argument name rather than suppressing the error. `AddNameToNullArgumentRector` has the same flaw but hasn't caused a loop here.
+`AddNameToBooleanArgumentRector` names arguments even when the callee is marked `@no-named-arguments`, like PHP CS Fixer's `Config::setRiskyAllowed()`. PHPStan rejects that (`argument.named`), so the two tools loop, and that's why the rule is skipped in `rector.php`. If PHPStan reports `argument.named`, drop the argument name rather than suppressing the error. `AddNameToNullArgumentRector` has the same flaw but hasn't caused a loop here. Both are reported as [rectorphp/rector#9907](https://github.com/rectorphp/rector/issues/9907).
 
 - **Check:** remove the rule from `withSkip()` in `rector.php` and run `composer rector:check`. It's fixed if Rector no longer wants `setRiskyAllowed(isRiskyAllowed: true)` in `.php-cs-fixer.dist.php`. Named booleans it proposes elsewhere are fine.
 - **Clean up:** delete the `withSkip()` call and its import, run `composer rector:fix` and then `composer phpstan`, and delete this entry.
